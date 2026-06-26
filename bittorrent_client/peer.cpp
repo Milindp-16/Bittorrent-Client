@@ -42,6 +42,7 @@ bool PeerConnection::connect_to_peer() {
 
     //trying to call the peer using connect method
     if (connect(sock, (SOCKADDR*)&clientService, sizeof(clientService)) == SOCKET_ERROR) {
+        std::cerr << "  [Debug] connect() failed with error: " << WSAGetLastError() << "\n";
         //if the connection is failed it will return false and close socket
         closesocket(sock);
         sock = INVALID_SOCKET;
@@ -177,6 +178,7 @@ bool PeerConnection::receive_piece(std::vector<uint8_t>& piece_data, uint32_t le
         uint32_t begin = ntohl(begin_net);
         if (begin + block_length <= piece_data.size()) {
             //overwrites the data instead of creating (insert)
+            //because char and uint8_t are 1 byte numbers we can directly copy them because it performs implicit conversion
             std::copy(block_data.begin(), block_data.end(), piece_data.begin() + begin);
         }
         return true;

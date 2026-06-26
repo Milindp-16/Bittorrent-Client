@@ -19,7 +19,7 @@ int main() {
 
     try {
         TorrentFile tf;
-        tf.load("ubuntu.torrent");
+        tf.load("debian.torrent");
 
         std::cout << "Loaded Torrent:\n";
         std::cout << "  Name: " << tf.name << "\n";

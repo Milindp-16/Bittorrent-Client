@@ -46,10 +46,7 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         return peers;
     }
 
-    //converting the https protocol to http protocol for ease of use
-    if (url.rfind("https://", 0) == 0) {
-        url = "http://" + url.substr(8);
-    }
+
 
     //chopping the full url into different parts hostname and path
     bool is_https = url.rfind("https://", 0) == 0;
@@ -80,7 +77,8 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
                         "&uploaded=" + std::to_string(this->uploaded) +
                         "&downloaded=" + std::to_string(this->downloaded) +
                         "&left=" + std::to_string(tf.length) +
-                        "&compact=1"; //compact format is used to reduce the size of the response
+                        "&compact=1" +
+                        "&numwant=50"; //compact format is used to reduce the size of the response
 
     path += query;
 
@@ -102,9 +100,14 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         throw std::runtime_error("InternetConnectA failed");
     }
 
+    DWORD requestFlags = INTERNET_FLAG_RELOAD;
+    if (is_https) {
+        requestFlags |= INTERNET_FLAG_SECURE;
+    }
+
     //opening a get request to the tracker server
     HINTERNET hRequest = HttpOpenRequestA(hConnect, "GET", path.c_str(),
-                                          NULL, NULL, NULL,0, 1);
+                                          NULL, NULL, NULL, requestFlags, 1);
 
     if (!hRequest) {
         //clearing older tickets before closing the connection
@@ -113,14 +116,24 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         throw std::runtime_error("HttpOpenRequestA failed");
     }
 
+    if (is_https) {
+        DWORD dwFlags = 0;
+        DWORD dwBuffLen = sizeof(dwFlags);
+        if (InternetQueryOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, &dwBuffLen)) {
+            dwFlags |= SECURITY_FLAG_IGNORE_REVOCATION | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+            InternetSetOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, sizeof(dwFlags));
+        }
+    }
+
     BOOL bResults = HttpSendRequestA(hRequest, NULL, 0, NULL, 0);
 
     if (!bResults) {
+        DWORD err = GetLastError();
         //clearing older tickets before closing the request
         InternetCloseHandle(hRequest);
         InternetCloseHandle(hConnect);
         InternetCloseHandle(hSession);
-        throw std::runtime_error("HttpSendRequestA failed");
+        throw std::runtime_error("HttpSendRequestA failed with error code: " + std::to_string(err));
     }
 
     //receiving response data from the tracker server
