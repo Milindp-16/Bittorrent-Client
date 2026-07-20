@@ -13,12 +13,15 @@ public:
     //each connection has its own socket
     //it acts like a telephone handset when we dial peer's IP window gives us this socket so we can 
     //talk into it and listen it
+    //windows establishes a TCP connection and handes over a socketId(integer)
+    // afterwards if we want to send/receive msg we hand over windows this socketId
     SOCKET sock = INVALID_SOCKET;
 
     //details of the peer we are talking to
     Peer peer;
-    std::string peer_id;
 
+
+    std::string peer_id;
     std::string info_hash;
 
     //the other peer has currently choked us
@@ -26,8 +29,15 @@ public:
     //this is our intent towards the other peer towards piece sharing
     bool interested = false;
 
-    PeerConnection(const Peer& p, const std::string& ih, const std::string& pid);
-    ~PeerConnection();
+    PeerConnection(const Peer& p, const std::string& ih, const std::string& pid)
+        : peer(p), peer_id(pid), info_hash(ih) {
+    }
+
+    ~PeerConnection() {
+        if (sock != INVALID_SOCKET) {
+            closesocket(sock);
+        }
+    }
 
     bool connect_to_peer();//tries to connect with the peer by opening a socket
     bool handshake();//does the 68 byte handshake with peer
@@ -38,6 +48,6 @@ public:
 
 private:
     //TCP is quite laze. these private methods ensure that only len bytes are sent and received
-    bool send_all(const char* buf, int len);
-    bool recv_all(char* buf, int len);
+    bool send_all(const char* buf, int len); //buf is the pointer to the very first byte of the data which we are sending (payload)
+    bool recv_all(char* buf, int len);//here the buf is the pointer to an empty bucket
 };

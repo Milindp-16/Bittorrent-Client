@@ -16,20 +16,22 @@ enum class Type {
     Dictionary
 };
 
-struct BNode;
+class BNode;
 
 using BInteger = long long;
 using BString = std::string;
 using BList = std::vector<BNode*>;
 using BDictionary = std::map<std::string, BNode*>;
 
-struct BNode {
+class BNode {
+public:
     Type type;
     BInteger int_val;
     BString str_val;
     BList list_val;
     BDictionary dict_val;
 
+    //constructor overloading
     BNode(BInteger v) {
         type = Type::Integer;
         int_val = v;
@@ -59,8 +61,6 @@ struct BNode {
             for (auto& pair : dict_val) delete pair.second;
         }
     }
-    BNode(const BNode&) = delete;
-    BNode& operator=(const BNode&) = delete;
 };
 
 BNode* decode(const std::string& data, size_t& pos);
