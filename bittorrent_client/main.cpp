@@ -5,14 +5,18 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <ctime>
 #include <winsock2.h>
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "advapi32.lib")
 
 int main() {
-    WSADATA wsaData;
-    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+    srand((unsigned int)time(0)); //seed random number generator for unique peer_id each run
+
+    //initialization step
+    WSADATA wsaData; //struct that windows will fill with info
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) { //MAKEWORD(2,2) -> Winsock version 2.2
         std::cerr << "WSAStartup failed.\n";
         return 1;
     }
@@ -63,11 +67,11 @@ int main() {
 
             std::cout << "  Handshake successful.\n";
             
-            // Wait for bitfield/unchoke
-            for (int i = 0; i < 5; i++) {
-                pc.receive_message();
-            }
+            // Drain initial messages (bitfield/keep alive/have)
+            // Loop until receive times out (no more messages), instead of fixed count
+            while (pc.receive_message()) {}
 
+            //check the bitfield and if any piece is to be req then send interested msg
             std::cout << "  Sending Interested...\n";
             pc.send_interested();
 

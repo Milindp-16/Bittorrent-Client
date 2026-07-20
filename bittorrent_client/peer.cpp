@@ -18,7 +18,7 @@ bool PeerConnection::connect_to_peer() {
     //normal computer processors read number right to left(little Endian) but internet expects the number from left to right so htons(Host To Network Short) flips the port number so it can be understood by the internet.
     clientService.sin_port = htons(peer.port);
 
-    DWORD timeout = 3000; //DWORD is just a windows data type for unsigned 32-bit integer
+    DWORD timeout = 10000; //10 second timeout for send/receive operations
 
     //we are configuring the settings on our telephone (socket) setsockopt -> set socket options
     //receive timeout -> if it waits for 3 sec for a message to arrive and even then no message is received then we 
@@ -146,36 +146,47 @@ bool PeerConnection::receive_message() {
 }
 
 bool PeerConnection::receive_piece(std::vector<uint8_t>& piece_data, uint32_t length) {
-    uint32_t len_net;
-    if (!recv_all((char*)&len_net, 4)) return false;
-    uint32_t msg_length = ntohl(len_net);
-    if (msg_length == 0) return true; //keep alive msg
+    //loop until we actually receive a piece(ID 7) message
+    //because the peer might send keep-alive, have, or choke messages in between
+    while (true) {
+        uint32_t len_net;
+        if (!recv_all((char*)&len_net, 4)) return false;
+        uint32_t msg_length = ntohl(len_net);
+        if (msg_length == 0) continue; //keep alive msg -> loop back and wait for real data
 
-    char id;
-    if (!recv_all(&id, 1)) return false;
+        char id;
+        if (!recv_all(&id, 1)) return false;
 
-    //if the id is 7 then it is a piece message
-    if (id == 7) {
-        uint32_t index_net, begin_net;
-        if (!recv_all((char*)&index_net, 4)) return false;
-        if (!recv_all((char*)&begin_net, 4)) return false;
+        //if the id is 7 then it is a piece message
+        if (id == 7) {
+            uint32_t index_net, begin_net;
+            if (!recv_all((char*)&index_net, 4)) return false;
+            if (!recv_all((char*)&begin_net, 4)) return false;
 
-        uint32_t block_length = msg_length - 9;
-        std::vector<char> block_data(block_length);
-        if (!recv_all(block_data.data(), block_length)) return false;
+            uint32_t block_length = msg_length - 9;
+            std::vector<char> block_data(block_length);
+            if (!recv_all(block_data.data(), block_length)) return false;
 
-        uint32_t begin = ntohl(begin_net);
-        if (begin + block_length <= piece_data.size()) {
-            //overwrites the data instead of creating (insert)
-            //because char and uint8_t are 1 byte numbers we can directly copy them because it performs implicit conversion
-            std::copy(block_data.begin(), block_data.end(), piece_data.begin() + begin);
+            uint32_t begin = ntohl(begin_net);
+            if (begin + block_length <= piece_data.size()) {
+                //overwrites the data instead of creating (insert)
+                //because char and uint8_t are 1 byte numbers we can directly copy them because it performs implicit conversion
+                std::copy(block_data.begin(), block_data.end(), piece_data.begin() + begin);
+            }
+            return true;
+        } else {
+            //non-piece message -> handle state changes, then loop back
+            if (id == 0) choked = true;
+            else if (id == 1) choked = false;
+
+            if (msg_length > 1) {
+                std::vector<char> payload(msg_length - 1);
+                recv_all(payload.data(), msg_length - 1);
+            }
+
+            //if peer choked us mid-transfer, abort
+            if (choked) return false;
+            //otherwise loop back and wait for the actual piece message
         }
-        return true;
-    } else {
-        if (msg_length > 1) {
-            std::vector<char> payload(msg_length - 1);
-            recv_all(payload.data(), msg_length - 1);
-        }
-        return true;
     }
 }

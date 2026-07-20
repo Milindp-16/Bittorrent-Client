@@ -71,7 +71,8 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
                         "&downloaded=" + std::to_string(downloaded) +
                         "&left=" + std::to_string(tf.length) +
                         "&compact=1" +
-                        "&numwant=50"; //compact format is used to reduce the size of the response
+                        "&numwant=200" +
+                        "&event=started"; //telling tracker we are a new client joining the swarm
 
     path += query;
 
