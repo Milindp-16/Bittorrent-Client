@@ -11,8 +11,9 @@
 Tracker::Tracker() {
     //generating random 20 characters peer_id 
     peer_id = "-PC0001-";
+    const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     for (int i = 0; i < 12; i++) {
-        peer_id += std::to_string(rand() % 10);
+        peer_id += charset[rand() % 62];
     }
 }
 
@@ -39,14 +40,6 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
 
     //grab the tracker url from the torrent file
     std::string url = tf.announce;
-    
-    //reject udp protocols
-    if (url.rfind("udp://", 0) == 0) {
-        std::cerr << "Warning: UDP trackers are not supported in this basic HTTP tracker implementation." << std::endl;
-        return peers;
-    }
-
-
 
     //chopping the full url into different parts hostname and path
     bool is_https = url.rfind("https://", 0) == 0;
@@ -74,24 +67,24 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
     std::string query = "?info_hash=" + url_encode(tf.info_hash) +
                         "&peer_id=" + url_encode(peer_id) +
                         "&port=" + std::to_string(this->port) +
-                        "&uploaded=" + std::to_string(this->uploaded) +
-                        "&downloaded=" + std::to_string(this->downloaded) +
+                        "&uploaded=" + std::to_string(uploaded) +
+                        "&downloaded=" + std::to_string(downloaded) +
                         "&left=" + std::to_string(tf.length) +
                         "&compact=1" +
                         "&numwant=50"; //compact format is used to reduce the size of the response
 
     path += query;
 
-    //HINTERNET holds a ticket that the winsock will use to identify our application
+    //HINTERNET holds a ticket that the WinINet will use to identify our application
     //InternetOpenA is used to open a session to the internet
-    //A at the end of the function means it expexts standard text strings not wide unicode strings
-    HINTERNET hSession = InternetOpenA("C++ BitTorrent Client/1.0",
+    //it return a session-ticket
+    HINTERNET hSession = InternetOpenA("C++ BitTorrent Client/1.0", //name
                                        INTERNET_OPEN_TYPE_PRECONFIG, //telling to use default internet settings
                                        NULL, NULL, 0);
 
     if (!hSession) throw std::runtime_error("InternetOpenA failed");
 
-    //connecting to the tracker server
+    //connecting to the tracker server (it returns a connection-ticket)
     HINTERNET hConnect = InternetConnectA(hSession, hostname.c_str(), port,
                                           NULL, NULL, INTERNET_SERVICE_HTTP, 0, 1);
     if (!hConnect) {
@@ -100,12 +93,12 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         throw std::runtime_error("InternetConnectA failed");
     }
 
-    DWORD requestFlags = INTERNET_FLAG_RELOAD;
+    DWORD requestFlags = INTERNET_FLAG_RELOAD; //bypasses the local cache and actually go out to the internet to download fresh data
     if (is_https) {
-        requestFlags |= INTERNET_FLAG_SECURE;
+        requestFlags |= INTERNET_FLAG_SECURE; //this flag ensures secure connection -> to perform TLS/SSL handshaking
     }
 
-    //opening a get request to the tracker server
+    //opening a get request to the tracker server (it return a request-ticket)
     HINTERNET hRequest = HttpOpenRequestA(hConnect, "GET", path.c_str(),
                                           NULL, NULL, NULL, requestFlags, 1);
 
@@ -116,15 +109,19 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         throw std::runtime_error("HttpOpenRequestA failed");
     }
 
+    //Security Override Block
     if (is_https) {
         DWORD dwFlags = 0;
         DWORD dwBuffLen = sizeof(dwFlags);
-        if (InternetQueryOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, &dwBuffLen)) {
+        if (InternetQueryOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, &dwBuffLen)) { //look at hRequest ticket and copy current strict SECURITY_FLAGS into dwFlags
+            //now override them by turning on the flags for ignoring revocations, unknown CA, invalid CN and invalid dates
+            //pass the modified flags back to hRequest
             dwFlags |= SECURITY_FLAG_IGNORE_REVOCATION | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
             InternetSetOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, sizeof(dwFlags));
         }
     }
 
+    //sending http get req.
     BOOL bResults = HttpSendRequestA(hRequest, NULL, 0, NULL, 0);
 
     if (!bResults) {
@@ -140,7 +137,7 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
 
     std::string response_data;
     //integer variable dwSize will hold the number of bytes available to read from the response
-    DWORD dwSize = 0; //DWORD is custom data type for Windows API, under the hood it is actually unsigned int
+    DWORD dwSize = 0; 
     //integer variable dwDownloaded will hold the number of bytes actually read from the response
     DWORD dwDownloaded = 0;
     do {
@@ -149,12 +146,13 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         if (!InternetQueryDataAvailable(hRequest, &dwSize, 0, 0)) {
             break;
         }
-        if (dwSize == 0) break;
+        if (dwSize == 0) break; //no data available
         
         //creating a buffer of size dwSize + 1 to hold the temp data from the windows
         std::vector<char> buffer(dwSize + 1);
-        //it reaches into the mailbox(network buffer), grabs the pages and puts them into buffer
-        if (InternetReadFile(hRequest, (LPVOID)buffer.data(), dwSize, &dwDownloaded)) {
+        //it reaches into the Network Buffer/Kernel Ram, grabs the pages and puts them into buffer
+        //LPVOID -> treats as raw memory address
+        if (InternetReadFile(hRequest, (LPVOID)buffer.data(), dwSize, &dwDownloaded)) { //dwDownloaded will be updated 
             response_data.append(buffer.data(), dwDownloaded);
         }
     } while (dwSize > 0);
@@ -176,8 +174,7 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
 
                 if (dict.count("peers")) {
                     //trackers send peer IPs in compact form to save BW
-                    //every 6 byte in this string represents exactly 1 peer
-                    //4 bytes for IP address + 2 bytes for port number
+                    //every 6 byte in this string represents exactly 1 peer -> 4B IP + 2B Port
                     auto peers_node = dict.at("peers");
                     if (peers_node->type == bencode::Type::String) {
                         std::string peers_str = peers_node->get_string();

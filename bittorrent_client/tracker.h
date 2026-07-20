@@ -12,8 +12,8 @@ struct Peer {
 
 class Tracker {
 public:
+    //details of me(Peer)
     std::string peer_id;
-    //default port for bittorrent where other peers listen for incoming connections
     int port = 6881;
     long long uploaded = 0;
     long long downloaded = 0;

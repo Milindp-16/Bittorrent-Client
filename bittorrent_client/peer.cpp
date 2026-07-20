@@ -32,7 +32,7 @@ bool PeerConnection::connect_to_peer() {
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
 
     //trying to call the peer using connect method
-    //SOCKADDR -> dummy structure provided by the windows API 
+    //SOCKADDR -> dummy structure provided by the windows API - using it we can typecast any client service, making it dynamic
     if (connect(sock, (SOCKADDR*)&clientService, sizeof(clientService)) == SOCKET_ERROR) {
         std::cerr << "  [Debug] connect() failed with error: " << WSAGetLastError() << "\n";
         //if the connection is failed it will return false and close socket
@@ -48,9 +48,6 @@ bool PeerConnection::send_all(const char* buf, int len) {
     int total = 0;
     while (total < len) {
         //built in windows function to send the message
-        //buf+total->tells the socket to leave the total(bytes sent till now) and start after that
-        //len-total->tells the socket how many bytes are left to send
-        //the function return the bytes which it was successfull to deliver
         int n = send(sock, buf + total, len - total, 0); //0 is the advance network flag
         if (n <= 0) return false;
         total += n;
@@ -77,10 +74,10 @@ bool PeerConnection::handshake() {
 
     std::vector<char> buf;
     buf.push_back(pstr_len); //insert the number 19(1 byte)
-    buf.insert(buf.end(), pstr, pstr + 19); //insert the string "BitTorrent protocol"(19 bytes)
-    buf.insert(buf.end(), reserved, reserved + 8); //insert the reserved array(8 bytes)
-    buf.insert(buf.end(), info_hash.begin(), info_hash.end()); //insert the info_hash(20 bytes)
-    buf.insert(buf.end(), peer_id.begin(), peer_id.end()); //insert the peer_id(20 bytes)
+    buf.insert(buf.end(), pstr, pstr + 19); //string "BitTorrent protocol"(19 bytes)
+    buf.insert(buf.end(), reserved, reserved + 8); //reserved array(8 bytes)
+    buf.insert(buf.end(), info_hash.begin(), info_hash.end()); //info_hash(20 bytes)
+    buf.insert(buf.end(), peer_id.begin(), peer_id.end()); //peer_id(20 bytes)
 
     //buf.data() return the pointer to the first element in the vector
     if (!send_all(buf.data(), buf.size())) return false;
@@ -93,7 +90,7 @@ bool PeerConnection::handshake() {
         return false;
     }
 
-    //if the info_hash does not match then it is not our torrent we are looking for
+    //if the info_hash does not match then return false
     std::string recv_hash(resp.data() + 28, 20);
     if (recv_hash != info_hash) {
         return false;
@@ -102,10 +99,8 @@ bool PeerConnection::handshake() {
     return true;//handshake is successful
 }
 
-//in bittorrent all the messages(after handshake is success) have a common structure -> 4 bytes length , 1 byte id, then the rest of the payload
-
 bool PeerConnection::send_interested() {
-    //the payload lenght is one and the id is 2 for intrested_message
+    //the payload length is 1 and the id is 2 for interested message
     char msg[5] = {0, 0, 0, 1, 2}; //the id is 2 which tells the peer we are interested in pieces
     return send_all(msg, 5);
 }
@@ -129,7 +124,7 @@ bool PeerConnection::request_piece(uint32_t index, uint32_t begin, uint32_t leng
 bool PeerConnection::receive_message() {
     uint32_t len_net;
     if (!recv_all((char*)&len_net, 4)) return false;
-    uint32_t length = ntohl(len_net);//converting it to integer that computer processor can understand
+    uint32_t length = ntohl(len_net);//big endian -> little endian
 
     if (length == 0) return true;//keep alive msg
 
