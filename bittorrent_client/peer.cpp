@@ -190,3 +190,9 @@ bool PeerConnection::receive_piece(std::vector<uint8_t>& piece_data, uint32_t le
         }
     }
 }
+
+void PeerConnection::set_timeout(int ms) {
+    DWORD timeout = ms;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
+}

@@ -45,6 +45,7 @@ public:
     bool send_interested();//send a msg to peer telling we want pieces
     bool request_piece(uint32_t index, uint32_t begin, uint32_t length);//requesting for a block of a piece, index -> index of the piece,begin -> starting address of the block, length->length of the block 
     bool receive_piece(std::vector<uint8_t>& piece_data, uint32_t length);//receiving piece ,there is vector in parameter because the piece will come in blocks
+    void set_timeout(int ms);//changes both send and receive timeout on the socket
 
 private:
     //TCP is quite laze. these private methods ensure that only len bytes are sent and received

@@ -67,9 +67,13 @@ int main() {
 
             std::cout << "  Handshake successful.\n";
             
-            // Drain initial messages (bitfield/keep alive/have)
-            // Loop until receive times out (no more messages), instead of fixed count
+            // Drain initial messages (bitfield/have/keep-alive)
+            // Use short timeout so we don't waste 10s waiting after the last message
+            pc.set_timeout(2000);
             while (pc.receive_message()) {}
+
+            // Restore longer timeout for actual data transfer
+            pc.set_timeout(15000);
 
             //check the bitfield and if any piece is to be req then send interested msg
             std::cout << "  Sending Interested...\n";
@@ -77,8 +81,8 @@ int main() {
 
             // Wait to be unchoked
             int wait_count = 0;
-            while (pc.choked && wait_count < 10) {
-                pc.receive_message();
+            while (pc.choked && wait_count < 30) {
+                if (!pc.receive_message()) break; // connection dead, stop waiting
                 wait_count++;
             }
 

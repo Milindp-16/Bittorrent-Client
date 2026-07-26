@@ -56,9 +56,19 @@ void TorrentFile::load(const std::string& filepath) {
                 }
             }
 
-            // Calculate info hash
-            std::string info_bencoded = bencode::encode(info);
-            info_hash = compute_sha1(info_bencoded);
+            // Calculate info hash from RAW bytes in the original .torrent file.
+            // We must NOT re-encode the parsed tree, because re-encoding may produce
+            // different bytes than the original (key ordering, etc.), giving a wrong hash.
+            size_t info_key_pos = data.find("4:infod");
+            if (info_key_pos == std::string::npos) {
+                throw std::runtime_error("Could not locate raw info dictionary in torrent data");
+            }
+            size_t info_val_start = info_key_pos + 6; // skip past "4:info", now pointing at 'd'
+            size_t info_val_end = info_val_start;
+            bencode::BNode* temp = bencode::decode(data, info_val_end); // advances past the dict
+            delete temp; // we only needed the position advancement
+            std::string raw_info = data.substr(info_val_start, info_val_end - info_val_start);
+            info_hash = compute_sha1(raw_info);
         } else {
             throw std::runtime_error("Missing info dictionary");
         }
