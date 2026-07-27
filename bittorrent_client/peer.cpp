@@ -18,11 +18,10 @@ bool PeerConnection::connect_to_peer() {
 
     set_timeout(10000); //10 second timeout for send/receive operations
 
-    //trying to call the peer using connect method
-    //SOCKADDR -> dummy structure provided by the windows API - using it we can typecast any client service, making it dynamic
+    //CONNECTING WITH THE PEER
+    //SOCKADDR -> dummy structure provided by the windows API - using it we can typecast, making it dynamic
     if (connect(sock, (SOCKADDR*)&clientService, sizeof(clientService)) == SOCKET_ERROR) {
         std::cerr << "  [Debug] connect() failed with error: " << WSAGetLastError() << "\n";
-        //if the connection is failed it will return false and close socket
         closesocket(sock);
         sock = INVALID_SOCKET;
         return false;
@@ -30,7 +29,7 @@ bool PeerConnection::connect_to_peer() {
     return true;
 }
 
-//we give this function 2 attributes buf -> memory address of the first box, len -> total number of bytes we want to send
+//buf->starting pointer to the buffer bucket,len->length of data we are sending
 bool PeerConnection::send_all(const char* buf, int len) {
     int total = 0;
     while (total < len) {
@@ -88,14 +87,15 @@ bool PeerConnection::handshake() {
 
 bool PeerConnection::send_interested() {
     //the payload length is 1 and the id is 2 for interested message
-    char msg[5] = {0, 0, 0, 1, 2}; //the id is 2 which tells the peer we are interested in pieces
+    //first 4 indexes denote the length of the payload(4Bytes)
+    char msg[5] = {0, 0, 0, 1, 2}; 
     return send_all(msg, 5);
 }
 
 
 bool PeerConnection::request_piece(uint32_t index, uint32_t begin, uint32_t length) {
     std::vector<char> msg; //act as bucket
-    uint32_t len_net = htonl(13); //length of the message(1 byte->id,4 byte->index of the piece you want,4 byte->begin offset,4 bytes -> length (how many bytes you want))
+    uint32_t len_net = htonl(13); //length of the message(1 byte->id,4 byte->index of the piece you want,4 byte->begin offset,4 bytes -> length)
     msg.insert(msg.end(), (char*)&len_net, ((char*)&len_net) + 4);
     msg.push_back(6); //id of the message(6 - request) -> implicit conversion since it if of 1 byte
     uint32_t idx_net = htonl(index);
@@ -156,7 +156,6 @@ bool PeerConnection::receive_piece(std::vector<uint8_t>& piece_data, uint32_t le
 
             uint32_t begin = ntohl(begin_net);
             if (begin + block_length <= piece_data.size()) {
-                //overwrites the data instead of creating (insert)
                 //because char and uint8_t are 1 byte numbers we can directly copy them because it performs implicit conversion
                 std::copy(block_data.begin(), block_data.end(), piece_data.begin() + begin);
             }

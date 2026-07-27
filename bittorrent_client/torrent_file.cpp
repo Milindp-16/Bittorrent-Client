@@ -6,7 +6,8 @@
 #include <stdexcept>
 
 void TorrentFile::load(const std::string& filepath) {
-    std::ifstream file(filepath, std::ios::binary); //reads data from the file present at filepath & read in binary 
+    //it reads the file present at filepath in binary so that the file is not corrupted at all
+    std::ifstream file(filepath, std::ios::binary);
     if (!file) throw std::runtime_error("Could not open torrent file");
 
     std::ostringstream ss;
@@ -57,8 +58,6 @@ void TorrentFile::load(const std::string& filepath) {
             }
 
             // Calculate info hash from RAW bytes in the original .torrent file.
-            // We must NOT re-encode the parsed tree, because re-encoding may produce
-            // different bytes than the original (key ordering, etc.), giving a wrong hash.
             size_t info_key_pos = data.find("4:infod");
             if (info_key_pos == std::string::npos) {
                 throw std::runtime_error("Could not locate raw info dictionary in torrent data");

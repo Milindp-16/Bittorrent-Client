@@ -115,9 +115,9 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
         DWORD dwFlags = 0;
         DWORD dwBuffLen = sizeof(dwFlags);
         if (InternetQueryOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, &dwBuffLen)) { //look at hRequest ticket and copy current strict SECURITY_FLAGS into dwFlags
-            //now override them by turning on the flags for ignoring revocations, unknown CA, invalid CN and invalid dates
-            //pass the modified flags back to hRequest
+            //we override some flags and pass the modified flag back to hRequest
             dwFlags |= SECURITY_FLAG_IGNORE_REVOCATION | SECURITY_FLAG_IGNORE_UNKNOWN_CA | SECURITY_FLAG_IGNORE_CERT_CN_INVALID | SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+            //Setter function
             InternetSetOptionA(hRequest, INTERNET_OPTION_SECURITY_FLAGS, &dwFlags, sizeof(dwFlags));
         }
     }
