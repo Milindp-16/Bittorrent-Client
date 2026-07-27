@@ -70,16 +70,10 @@ bittorrent_client/
 | **Networking (TCP)** | Winsock2 — for peer-to-peer socket connections |
 | **Hashing** | Windows Cryptography API (`advapi32`) — for SHA-1 computation |
 | **Encoding** | Custom Bencode parser/encoder |
-| **Platform** | Windows |
 
 ---
 
 ## 🚀 Build & Run
-
-### Prerequisites
-
-- **Windows OS**
-- **MinGW** (g++ with C++14 support)
 
 ### Build
 
