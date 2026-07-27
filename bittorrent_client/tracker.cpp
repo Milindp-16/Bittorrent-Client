@@ -137,19 +137,16 @@ std::vector<Peer> Tracker::request_peers(const TorrentFile& tf) {
     //receiving response data from the tracker server
 
     std::string response_data;
-    //integer variable dwSize will hold the number of bytes available to read from the response
-    DWORD dwSize = 0; 
-    //integer variable dwDownloaded will hold the number of bytes actually read from the response
-    DWORD dwDownloaded = 0;
+    DWORD dwSize = 0; //number of bytes available to read from the response
+    DWORD dwDownloaded = 0; //number of bytes actually read from the response
     do {
         dwSize = 0;
-        //we have to send the hRequest everytime to check if there is data available to read from the Network Buffer
+        //check if data is available to read from the Network Buffer
         if (!InternetQueryDataAvailable(hRequest, &dwSize, 0, 0)) {
             break;
         }
         if (dwSize == 0) break; //no data available
         
-        //creating a buffer of size dwSize + 1 to hold the temp data from the windows
         std::vector<char> buffer(dwSize + 1);
         //it reaches into the Network Buffer/Kernel Ram, grabs the pages and puts them into buffer
         //LPVOID -> treats as raw memory address
