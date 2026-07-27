@@ -7,29 +7,16 @@
 
 bool PeerConnection::connect_to_peer() {
     //creating a socket with AF_INET(address family internet) -> tells window that we are using IPv4 
-    //SOCK_STREAM -> TCP(2 way reliable stream of data)
-    //IPPROTO_TCP -> just an identifier for TCP
     sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sock == INVALID_SOCKET) return false;
 
     sockaddr_in clientService; //socket address card - it takes down the exact destination we want to call
-    clientService.sin_family = AF_INET; //telling that the address we gonna write down on the address card will be standard IPV4 card
-    clientService.sin_addr.s_addr = inet_addr(peer.ip.c_str());//filling the IP address of the destination ,since computer donot understand normal string so inet_addr converts ip string into 32 bit binary number which is needed for network communication.
+    clientService.sin_family = AF_INET; //indicates that we will use standard IPV4 
+    clientService.sin_addr.s_addr = inet_addr(peer.ip.c_str());//filling the IP address of the destination,inet_addr converts ip string into 32 bit integer
     //normal computer processors read number right to left(little Endian) but internet expects the number from left to right so htons(Host To Network Short) flips the port number so it can be understood by the internet.
     clientService.sin_port = htons(peer.port);
 
-    DWORD timeout = 10000; //10 second timeout for send/receive operations
-
-    //we are configuring the settings on our telephone (socket) setsockopt -> set socket options
-    //receive timeout -> if it waits for 3 sec for a message to arrive and even then no message is received then we 
-    //just hang up the phone and dont wait anymore
-
-    //we send the size along with the pointer because winsock32 is written in native C which has no idea how big the data is
-    //therefor we have to explicitly tell that read only till this length
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
-    //send timeout -> if it tries to send a message and it takes more than 3 sec to send it then we 
-    //just hang up the phone and dont wait anymore
-    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (const char*)&timeout, sizeof(timeout));
+    set_timeout(10000); //10 second timeout for send/receive operations
 
     //trying to call the peer using connect method
     //SOCKADDR -> dummy structure provided by the windows API - using it we can typecast any client service, making it dynamic
